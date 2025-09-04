@@ -4,6 +4,11 @@ A multi-agent AI system with reinforcement learning capabilities, featuring spec
 
 ## 🏗️ Architecture
 
+![NeuroAct AI Architecture](./docs/architecture.png)
+
+*System architecture showing the multi-agent workflow with Ollama integration*
+
+### Core Components:
 - **Agents**: Specialized AI agents for different domains
 - **Core**: LangGraph workflow orchestration with ReAct + ToT planning
 - **MCP**: Multi-agent Communication Protocol for inter-agent messaging
