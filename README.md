@@ -49,16 +49,61 @@ python -m pytest tests/
 
 ```
 neuroact-ai/
-├── app/                    # Main application
-│   ├── agents/            # Specialized AI agents
-│   ├── core/              # Core workflow logic
-│   ├── mcp/               # Multi-agent communication
-│   ├── memory/            # RAG and vector store
-│   ├── tools/             # Agent tools and utilities
-│   └── interface/         # FastAPI server
-├── tests/                 # Unit and integration tests
-├── scripts/               # Development utilities
-└── run.py                 # Main entry point
+├── app/                           # Main application
+│   ├── __init__.py
+│   ├── config.py                  # Configuration management
+│   ├── agents/                    # Specialized AI agents
+│   │   ├── __init__.py
+│   │   ├── code_agent.py          # Code generation agent
+│   │   ├── ml_agent.py            # Machine learning agent
+│   │   ├── data_agent.py          # Data processing agent
+│   │   ├── eval_agent.py          # Evaluation agent
+│   │   └── planner_agent.py       # Task planning agent
+│   ├── core/                      # Core workflow logic
+│   │   ├── __init__.py
+│   │   ├── langgraph_flow.py      # LangGraph workflow
+│   │   ├── task_parser.py         # ReAct + ToT parser
+│   │   └── reward_loop.py         # RL reward system
+│   ├── mcp/                       # Multi-agent communication
+│   │   ├── __init__.py
+│   │   ├── mcp_schema.py          # Communication schemas
+│   │   └── mcp_dispatcher.py      # Message dispatcher
+│   ├── memory/                    # RAG and vector store
+│   │   ├── __init__.py
+│   │   ├── vector_store.py        # Vector database wrapper
+│   │   ├── embedder.py            # Text embedding service
+│   │   └── rag.py                 # RAG pipeline
+│   ├── tools/                     # Agent tools and utilities
+│   │   ├── __init__.py
+│   │   ├── python_repl.py         # Code execution
+│   │   ├── huggingface_loader.py  # HF model loader
+│   │   ├── qlora_trainer.py       # QLoRA fine-tuning
+│   │   ├── lora_adapter.py        # LoRA integration
+│   │   ├── github_api.py          # GitHub integration
+│   │   ├── json_editor.py         # JSON utilities
+│   │   └── data_utils.py          # Data processing tools
+│   └── interface/                 # FastAPI server
+│       ├── __init__.py
+│       ├── fastapi_main.py        # Main API server
+│       └── ui_helpers.py          # UI response helpers
+├── tests/                         # Unit and integration tests
+│   ├── test_agents.py
+│   ├── test_langgraph_flow.py
+│   ├── test_rag_pipeline.py
+│   └── test_fastapi_routes.py
+├── scripts/                       # Development utilities
+│   ├── run_pipeline.py            # CLI pipeline runner
+│   └── seed_vector_store.py       # Vector store seeding
+├── docs/                          # Documentation
+│   └── Architecture.png           # System architecture diagram
+├── data/                          # Data storage (auto-created)
+│   ├── vectors/                   # Vector embeddings
+│   └── logs/                      # Application logs
+├── .env                           # Environment variables
+├── .gitignore                     # Git ignore rules
+├── requirements.txt               # Python dependencies
+├── README.md                      # Project documentation
+└── run.py                         # Main entry point
 ```
 
 ## 🤖 Available Agents
