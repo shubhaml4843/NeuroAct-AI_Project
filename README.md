@@ -4,7 +4,7 @@ A multi-agent AI system with reinforcement learning capabilities, featuring spec
 
 ## 🏗️ Architecture
 
-![NeuroAct AI Architecture](./docs/architecture.png)
+![NeuroAct AI Architecture](./docs/Architecture.png)
 
 *System architecture showing the multi-agent workflow with Ollama integration*
 
