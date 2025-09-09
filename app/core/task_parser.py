@@ -1,7 +1,7 @@
 """ReAct + ToT task breakdown logic.Help  to make  the task into sub task after suing the ReAct it reasoning step by step or plan  and pass them inot planner/agent / vai Mcp"""
 # here we define all the agent task
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from app.mcp.mcp_schema import TaskManager
 import uuid
 from app.utils.logger import get_logger, log_execution_time
@@ -13,10 +13,20 @@ class TaskParser:
         pass
     
     def get_query_complexity(self, query: str) -> str:
-        """Analyze query complexity based on keyword matches."""
-        keywords = ["train", "evaluate", "optimize", "visualize", "clean", "retrieve", "review"]
-        matches = sum(1 for kw in keywords if kw in query.lower())
-        return "high" if matches > 2 else "medium" if matches > 1 else "low"
+        """Enhanced complexity analysis with weighted keywords"""
+        high_complexity = ["train", "deep", "neural", "optimize", "hyperparameter", "pipeline"]
+        medium_complexity = ["evaluate", "visualize", "clean", "prepare", "model"]
+        low_complexity = ["plot", "show", "print", "simple"]
+        
+        high_matches = sum(2 for kw in high_complexity if kw in query.lower())
+        medium_matches = sum(1 for kw in medium_complexity if kw in query.lower())
+        low_matches = sum(0.5 for kw in low_complexity if kw in query.lower())
+        
+        total_score = high_matches + medium_matches + low_matches
+        
+        if total_score >= 4: return "high"
+        elif total_score >= 2: return "medium"
+        else: return "low"
     
     def validate_dependencies(self, subtasks: List[TaskManager]) -> bool:
         """Validate that all dependencies exist in task list."""
@@ -30,6 +40,28 @@ class TaskParser:
     def generate_task_id(self) -> str:
         """Generate unique task ID."""
         return str(uuid.uuid4())[:8]
+    
+    def _extract_context(self, query: str) -> Dict[str, Any]:
+        """Extract key context from query"""
+        context = {}
+        
+        # Extract data source
+        if any(word in query.lower() for word in ["csv", "json", "excel", "database"]):
+            context["has_data_source"] = True
+        
+        # Extract model type
+        if "classification" in query.lower():
+            context["model_type"] = "classification"
+        elif "regression" in query.lower():
+            context["model_type"] = "regression"
+        
+        # Extract action type
+        if any(word in query.lower() for word in ["build", "create", "develop"]):
+            context["action"] = "create"
+        elif any(word in query.lower() for word in ["fix", "debug", "error"]):
+            context["action"] = "debug"
+        
+        return context
 
     @log_execution_time
     def parse(self, user_query: str) -> List[TaskManager]:
@@ -37,7 +69,8 @@ class TaskParser:
         subtasks: List[TaskManager] = []
         query_lower = user_query.lower()
         complexity = self.get_query_complexity(user_query)
-        logger.debug(f"Query complexity: {complexity}")
+        context = self._extract_context(user_query)
+        logger.debug(f"Query complexity: {complexity}, Context: {context}")
         
         # --- Planning Agent (for complex queries) ---
         if "plan" in query_lower or "strategy" in query_lower or "workflow" in query_lower or complexity == "high":
@@ -71,7 +104,7 @@ class TaskParser:
                 )
             )
 
-         # --- Retrieval for Knowledge/External Data ---
+        # --- Retrieval for Knowledge/External Data ---
         if "retrieve" in query_lower or "search" in query_lower or "fetch" in query_lower:
             subtasks.append(
                 TaskManager(
@@ -82,6 +115,22 @@ class TaskParser:
                     inputs={"query": "Fetch external knowledge or data"},
                     tools=["requests", "chromadb", "faiss", "pinecone", "weaviate", "langchain", "beautifulsoup4", "scrapy"],
                     expected_output="Relevant retrieved documents/data",
+                    dependencies=[],
+                    metadata={"priority": "medium"}
+                )
+            )
+
+        # --- Code Generation ---
+        if "code" in query_lower or "generate" in query_lower or "implement" in query_lower or "write" in query_lower:
+            subtasks.append(
+                TaskManager(
+                    task_id=self.generate_task_id(),
+                    sender="user",
+                    receiver="CodeAgent",
+                    agent_role="CodeAgent",
+                    inputs={"query": user_query, "action": "generate"},
+                    tools=["python_repl", "jupyter", "black", "flake8"],
+                    expected_output="Generated code",
                     dependencies=[],
                     metadata={"priority": "medium"}
                 )
@@ -153,7 +202,7 @@ class TaskParser:
                 )
             )
         
-         # --- Critic / Review ---
+        # --- Critic / Review ---
 
         if "review" in query_lower or "verify" in query_lower or "criticize" in query_lower:
             subtasks.append(
@@ -185,6 +234,7 @@ class TaskParser:
                     metadata={"priority": "low"}
                 )
             )
+
 
         # --- Code Execution (Fallback) ---
         if not subtasks:  # default if nothing matched

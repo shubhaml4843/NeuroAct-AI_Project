@@ -1,13 +1,9 @@
-"""Agent for data wrangling and processing."""
+"""Agent for data wrangling and processing. Or  Making all data Processing Task """
+from app.mcp.mcp_schema import TaskMessage
+from app.utils.logger import get_logger , log_execution_time
+from typing import Dict, Any, List, Optional, Tuple
+import pandas as pd
+import numpy as np
+from pathlib import path
 
-class DataAgent:
-    def __init__(self):
-        self.name = "DataAgent"
-    
-    def process_data(self, data_source: str) -> dict:
-        """Process and clean data from source."""
-        return {"status": "processed", "rows": 1000, "columns": 10}
-    
-    def analyze_data(self, data: dict) -> dict:
-        """Analyze data patterns and statistics."""
-        return {"summary": "Data analysis complete", "insights": []}
+logger = get_logger(__name__)

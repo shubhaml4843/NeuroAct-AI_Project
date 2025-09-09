@@ -37,6 +37,31 @@ class PlannerAgent:
         self.workflow = self.build_workflow()
         self.agent_registry = self._build_agent_registry()
     
+    @log_execution_time
+    def execute(self, task: TaskManager) -> Dict[str, Any]:
+        """Main execute method for PlannerAgent"""
+        logger.info(f"PlannerAgent executing task: {task.task_id}")
+        
+        try:
+            subtasks = task.inputs.get("subtasks", [])
+            if not subtasks:
+                return {"status": "error", "message": "No subtasks provided"}
+            
+            result = asyncio.run(self.execute_advanced(subtasks))
+            
+            return {
+                "status": "success",
+                "action": "task_planning",
+                "execution_summary": result["execution_summary"],
+                "completed_tasks": len(result["completed_tasks"]),
+                "failed_tasks": len(result["failed_tasks"]),
+                "summary": f"Executed {len(result['completed_tasks'])} tasks successfully"
+            }
+            
+        except Exception as e:
+            logger.error(f"PlannerAgent execution failed: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
     def _build_agent_registry(self) -> Dict[str, Dict[str, Any]]:
         """Complete agent registry with all agents and retry strategies."""
         return {
