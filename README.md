@@ -90,11 +90,6 @@ NeuroAct-AI_Project/
 │       ├── __init__.py
 │       ├── fastapi_main.py        # Main API server
 │       └── ui_helpers.py          # UI response helpers
-├── tests/                         # Unit and integration tests
-│   ├── test_agents.py
-│   ├── test_langgraph_flow.py
-│   ├── test_rag_pipeline.py
-│   └── test_fastapi_routes.py
 ├── scripts/                       # Development utilities
 │   ├── run_pipeline.py            # CLI pipeline runner
 │   └── seed_vector_store.py       # Vector store seeding
@@ -112,11 +107,17 @@ NeuroAct-AI_Project/
 
 ## 🤖 Available Agents
 
-- **CodeAgent**: Code generation and review
-- **MLAgent**: Machine learning model training
-- **DataAgent**: Data processing and analysis
-- **EvalAgent**: Quality assessment and feedback
-- **PlannerAgent**: Task orchestration and planning
+- **CodeAgent**: Secure code generation, execution, and review with subprocess isolation, pattern matching, and comprehensive templates for APIs, databases, algorithms, and data processing
+- **MLAgent**: Traditional machine learning with scikit-learn, feature engineering, model selection, hyperparameter tuning, and performance evaluation
+- **DataAgent**: Complete data pipeline with loading (CSV/JSON/Excel), cleaning, statistical analysis, transformation, and quality assessment
+- **DeepLearningAgent**: Neural network training with PyTorch/TensorFlow, custom architectures, transfer learning, and distributed training support
+- **EvalAgent**: Model evaluation and quality assessment with metrics calculation, performance analysis, and validation reporting
+- **PlannerAgent**: Advanced workflow orchestration using NetworkX + LangGraph with DAG validation, parallel execution, and retry strategies
+- **CriticAgent**: Code and model quality review with best practices validation, security analysis, and improvement recommendations
+- **OptimizerAgent**: Hyperparameter optimization using Optuna, Bayesian optimization, and automated model tuning
+- **RetrievalAgent**: External data fetching from APIs, databases, and web sources with caching and rate limiting
+- **VisualizationAgent**: Data visualization and reporting with matplotlib, seaborn, plotly, and interactive dashboards
+
 
 ## 🔧 Development
 
