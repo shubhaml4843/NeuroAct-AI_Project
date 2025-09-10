@@ -16,10 +16,7 @@ except ImportError:
         "model": "llama2",
         "timeout": 30
     }
-
-
 logger = get_logger(__name__)
-
 class CriticAgent:
     """Agent for quality review and improvement recommendations."""
     def __init__(self):
@@ -529,8 +526,6 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
                 "error": str(e)
             }
     
-
-
     def _query_llm(self, prompt: str) -> Dict[str, Any]:
         """Query Ollama LLM using existing configuration."""
         try:
@@ -573,8 +568,6 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
         except Exception as e:
             logger.error(f"LLM query failed: {str(e)}")
             return self._fallback_response()
-    
-
     
     def _fallback_response(self) -> Dict[str, Any]:
         """Fallback response when LLM is unavailable."""
@@ -641,11 +634,8 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
                 "message": "Function has too many parameters",
                 "severity": "medium"
             })
-        
-
-        
         return smells
-
+        
     def _standard_response(self, status: str, action: str, data: Optional[Dict] = None, errors: Optional[List] = None) -> Dict[str, Any]:
         """Generate standardized response with strict schema."""
         return {
