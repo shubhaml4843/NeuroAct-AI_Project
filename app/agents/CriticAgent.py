@@ -8,20 +8,17 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
-try:
-    from app.config import OLLAMA_CONFIG
-except ImportError:
-    OLLAMA_CONFIG = {
-        "base_url": "http://localhost:11434",
-        "model": "llama2",
-        "timeout": 30
-    }
+from app.config import get_ollama_config
+
+
 logger = get_logger(__name__)
+
 class CriticAgent:
     """Agent for quality review and improvement recommendations."""
     def __init__(self):
         self.name ="CriticAgent"
         self.available_tools = self._check_available_tools()
+        self.ollama_config = get_ollama_config()
         self.thresholds = {
             "accuracy": 0.7,
             "overfitting_gap": 0.1,
@@ -514,7 +511,7 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
                 "ai_issues": ai_response.get("issues", []),
                 "ai_suggestions": ai_response.get("suggestions", []),
                 "ai_quality_score": ai_response.get("score", 70),
-                "llm_model": f"ollama-{OLLAMA_CONFIG.get('model', 'llama2')}",
+                "llm_model": f"ollama-{self.ollama_config.get('model', 'llama2')}",
                 "analysis_context": agent_name
             }
         except Exception as e:
@@ -525,27 +522,27 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
                 "ai_quality_score": 0,
                 "error": str(e)
             }
-    
+
     def _query_llm(self, prompt: str) -> Dict[str, Any]:
         """Query Ollama LLM using existing configuration."""
         try:
             import requests
             
             # Use existing Ollama configuration
-            ollama_url = f"{OLLAMA_CONFIG['base_url']}/api/generate"
+            ollama_url = f"{self.ollama_config['base_url']}/api/generate"
             
             payload = {
-                "model": OLLAMA_CONFIG.get("model", "llama2"),
+                "model": self.ollama_config.get("model", "llama2"),
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": OLLAMA_CONFIG.get("temperature", 0.1),
-                    "top_p": OLLAMA_CONFIG.get("top_p", 0.9),
-                    "max_tokens": OLLAMA_CONFIG.get("max_tokens", 500)
+                    "temperature": 0.1,
+                    "top_p": 0.9,
+                    "max_tokens": 500
                 }
             }
             
-            response = requests.post(ollama_url, json=payload, timeout=OLLAMA_CONFIG.get("timeout", 30))
+            response = requests.post(ollama_url, json=payload, timeout=self.ollama_config.get("timeout", 30))
             
             if response.status_code == 200:
                 result = response.json()
@@ -568,6 +565,8 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
         except Exception as e:
             logger.error(f"LLM query failed: {str(e)}")
             return self._fallback_response()
+    
+
     
     def _fallback_response(self) -> Dict[str, Any]:
         """Fallback response when LLM is unavailable."""
@@ -621,8 +620,6 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
             pass
         return issues
 
-
-
     def _detect_code_smells(self, code_content: str) -> List[Dict[str, Any]]:
         """Detect code smells and anti-patterns."""
         smells = []
@@ -635,7 +632,7 @@ Return JSON: {{"issues": [], "suggestions": [], "score": 75}}"""
                 "severity": "medium"
             })
         return smells
-        
+
     def _standard_response(self, status: str, action: str, data: Optional[Dict] = None, errors: Optional[List] = None) -> Dict[str, Any]:
         """Generate standardized response with strict schema."""
         return {
