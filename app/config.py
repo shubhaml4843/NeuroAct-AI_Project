@@ -49,7 +49,7 @@ class Settings:
     
     # Server Configuration
     HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8000"))
+    PORT: int = int(os.getenv("PORT", "8700"))
     RELOAD: bool = os.getenv("RELOAD", "true").lower() == "true"
 
 # Global settings instance
