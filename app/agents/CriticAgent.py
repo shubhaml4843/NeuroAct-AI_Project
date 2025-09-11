@@ -6,7 +6,6 @@ from typing import Dict, Any, List, Optional
 import subprocess
 from pathlib import Path
 
-
 logger = get_logger(__name__)
 
 class CriticAgent:
@@ -232,136 +231,42 @@ class CriticAgent:
             result = viz_agent.execute(viz_task)
             
             return {
-                "ai_issues": ai_response.get("issues", []),
-                "ai_suggestions": ai_response.get("suggestions", []),
-                "ai_quality_score": ai_response.get("score", 70),
-                "llm_model": f"ollama-{OLLAMA_CONFIG.get('model', 'llama2')}",
-                "analysis_context": agent_name
+                "status": "success",
+                "routed_to": "VisualizationAgent",
+                "analysis_type": "Visualization Analysis",
+                "result": result,
+                "message": "Visualization analysis completed by VisualizationAgent"
             }
             
         except Exception as e:
-            logger.warning(f"AI review failed: {str(e)}")
-            return {
-                "ai_issues": [],
-                "ai_suggestions": ["AI review unavailable - check Ollama service"],
-                "ai_quality_score": 0,
-                "error": str(e)
-            }
-    
+            return {"status": "error", "errors": [f"VisualizationAgent routing failed: {str(e)}"]}
 
-
-    def _query_llm(self, prompt: str) -> Dict[str, Any]:
-        """Query Ollama LLM using existing configuration."""
+    def _comprehensive_review(self, task: TaskMessage) -> Dict[str, Any]:
+        """Perform comprehensive review using multiple agents"""
         try:
-            import requests
+            query = task.inputs.get("query", "")
+            code_content = task.inputs.get("code", task.inputs.get("code_content", ""))
             
-            # Use existing Ollama configuration
-            ollama_url = f"{OLLAMA_CONFIG['base_url']}/api/generate"
-            
-            payload = {
-                "model": OLLAMA_CONFIG.get("model", "llama2"),
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": OLLAMA_CONFIG.get("temperature", 0.1),
-                    "top_p": OLLAMA_CONFIG.get("top_p", 0.9),
-                    "max_tokens": OLLAMA_CONFIG.get("max_tokens", 500)
-                }
+            review_results = {
+                "status": "success",
+                "action": "comprehensive_review",
+                "reviews": [],
+                "overall_score": 0,
+                "recommendations": []
             }
             
-            response = requests.post(ollama_url, json=payload, timeout=OLLAMA_CONFIG.get("timeout", 30))
+            # Code review if code is provided
+            if code_content:
+                code_review = self._route_to_code_agent(task)
+                review_results["reviews"].append({
+                    "type": "code_review",
+                    "result": code_review
+                })
             
-            if response.status_code == 200:
-                result = response.json()
-                llm_output = result.get("response", "")
-                
-                # Parse LLM response (expecting JSON format)
-                try:
-                    import json
-                    parsed_response = json.loads(llm_output)
-                    return parsed_response
-                except json.JSONDecodeError:
-                    return self._fallback_response()
-            else:
-                logger.warning(f"Ollama API error: {response.status_code}")
-                return self._fallback_response()
-                
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Ollama connection failed: {str(e)}")
-            return self._fallback_response()
+            # Generate summary
+            review_results["summary"] = f"Comprehensive review completed with {len(review_results['reviews'])} analyses"
+            
+            return review_results
+            
         except Exception as e:
             return {"status": "error", "errors": [f"Comprehensive review failed: {str(e)}"]}
-
-    def _generate_code_fixes(self, issues: List[Dict]) -> Dict[str, str]:
-        """Generate actual code fixes."""
-        fixes = {}
-        for issue in issues:
-            issue_type = issue.get("type", "")
-            line = issue.get("line", 0)
-            
-            if issue_type == "dangerous_function":
-                if issue.get("function") == "eval":
-                    fixes[f"line_{line}"] = "Replace eval() with ast.literal_eval()"
-                elif issue.get("function") == "exec":
-                    fixes[f"line_{line}"] = "Avoid exec() - use proper function calls"
-            elif issue_type == "complex_function":
-                fixes[f"line_{line}"] = f"Break down {issue.get('function')}() into smaller functions"
-        return fixes
-
-    def _analyze_documentation(self, code_content: str) -> List[Dict[str, Any]]:
-        """Analyze documentation quality."""
-        issues = []
-        try:
-            tree = ast.parse(code_content)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
-                    if not ast.get_docstring(node):
-                        issues.append({
-                            "type": "missing_docstring",
-                            "function": node.name,
-                            "line": node.lineno,
-                            "severity": "medium",
-                            "location": str(node.lineno)
-                        })
-        except SyntaxError:
-            pass
-        return issues
-
-
-
-    def _detect_code_smells(self, code_content: str) -> List[Dict[str, Any]]:
-        """Detect code smells and anti-patterns."""
-        smells = []
-        
-        # Long parameter lists
-        if re.search(r'def\s+\w+\([^)]{50,}\)', code_content):
-            smells.append({
-                "type": "long_parameter_list",
-                "message": "Function has too many parameters",
-                "severity": "medium"
-            })
-        
-
-        
-        return smells
-
-    def _standard_response(self, status: str, action: str, data: Optional[Dict] = None, errors: Optional[List] = None) -> Dict[str, Any]:
-        """Generate standardized response with strict schema."""
-        return {
-            "status": status,
-            "action": action,
-            "data": data or {},
-            "errors": errors or []
-        }
-
-
-
-
-
-
-            
-
-
-        
-    
-
