@@ -170,16 +170,16 @@ class TaskParser:
             )
 
         
-        # --- Optimizer (Hyperparameter Tuning) ---
+        # --- Model Evaluation (includes optimization) ---
         if "optimize" in query_lower or "tune" in query_lower or "hyperparameter" in query_lower:
             subtasks.append(
                 TaskManager(
                     task_id=self.generate_task_id(),
                     sender="user",
-                    receiver="OptimizerAgent",
-                    agent_role="OptimizerAgent",
+                    receiver="ModelEvaluationAgent",
+                    agent_role="ModelEvaluationAgent",
                     inputs={"query": "Optimize training process"},
-                    tools=["optuna", "hyperopt", "ray_tune", "sklearn.model_selection", "GridSearchCV", "bayesian_optimization", "nevergrad"],
+                    tools=["optuna", "hyperopt", "sklearn.model_selection", "GridSearchCV"],
                     expected_output="Optimized model parameters",
                     dependencies=[st.task_id for st in subtasks if st.agent_role in ["MLAgent", "DeepLearningAgent"]],
                     metadata={"priority": "medium"}
@@ -192,10 +192,10 @@ class TaskParser:
                 TaskManager(
                     task_id=self.generate_task_id(),
                     sender="user",
-                    receiver="EvalAgent",
-                    agent_role="EvalAgent",
+                    receiver="ModelEvaluationAgent",
+                    agent_role="ModelEvaluationAgent",
                     inputs={"query": "Evaluate model performance"},
-                    tools=["sklearn.metrics", "torchmetrics", "evaluate", "seqeval", "rouge_score", "bleu_score", "confusion_matrix"],
+                    tools=["sklearn.metrics", "torchmetrics", "evaluate", "confusion_matrix"],
                     expected_output="Evaluation report (accuracy, F1, etc.)",
                     dependencies=[st.task_id for st in subtasks if st.agent_role in ["MLAgent", "DeepLearningAgent"]],
                     metadata={"priority": "medium"}
@@ -214,7 +214,7 @@ class TaskParser:
                     inputs={"query": "Review outputs for quality and correctness"},
                     tools=["pytest", "unittest", "hypothesis", "great_expectations", "deepchecks", "evidently", "alibi_detect"],
                     expected_output="Feedback with strengths/weaknesses",
-                    dependencies=[st.task_id for st in subtasks if st.agent_role == "EvalAgent"],
+                    dependencies=[st.task_id for st in subtasks if st.agent_role == "ModelEvaluationAgent"],
                     metadata={"priority": "low"}
                 )
             )
@@ -230,7 +230,7 @@ class TaskParser:
                     inputs={"query": "Visualize results"},
                     tools=["matplotlib", "seaborn", "scipy", "plotly", "bokeh", "altair", "streamlit", "dash"],
                     expected_output="Generated charts/plots",
-                    dependencies=[st.task_id for st in subtasks if st.agent_role == "EvalAgent"],
+                    dependencies=[st.task_id for st in subtasks if st.agent_role == "ModelEvaluationAgent"],
                     metadata={"priority": "low"}
                 )
             )

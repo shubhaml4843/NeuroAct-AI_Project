@@ -8,13 +8,13 @@ from app.utils.logger import get_logger, log_execution_time
 from app.agents.data_agent import DataAgent
 from app.agents.ml_agent import MLAgent
 from app.agents.Deep_learning_Agent import DeepLearningAgent
-from app.agents.eval_agent import EvalAgent
-from app.agents.OptimizerAgent import OptimizerAgent
+from app.agents.model_evaluation_agent import ModelEvaluationAgent
 from app.agents.VisualizationAgent import VisualizationAgent
 from app.agents.CriticAgent import CriticAgent
 from app.agents.RetrievalAgent import RetrievalAgent
 from app.agents.code_agent import CodeAgent
 from app.agents.planner_agent import PlannerAgent
+from app.agents.nlp_agent import NLPAgent
 
 logger = get_logger(__name__)
 
@@ -24,13 +24,13 @@ class MCPDispatcher:
             "DataAgent": DataAgent(),
             "MLAgent": MLAgent(),
             "DeepLearningAgent": DeepLearningAgent(),
-            "EvalAgent": EvalAgent(),
-            "OptimizerAgent": OptimizerAgent(),
+            "ModelEvaluationAgent": ModelEvaluationAgent(),
             "VisualizationAgent": VisualizationAgent(),
             "CriticAgent": CriticAgent(),
             "RetrievalAgent": RetrievalAgent(),
             "CodeAgent": CodeAgent(),
-            "PlannerAgent": PlannerAgent()
+            "PlannerAgent": PlannerAgent(),
+            "NLPAgent": NLPAgent()
         }
         logger.info("MCP Dispatcher initialized with all agents")
 

@@ -61,8 +61,8 @@ class TaskMessage(BaseModel):
     def validate_agent_role(cls, v):
         valid_agents = [
             'DataAgent', 'MLAgent', 'DeepLearningAgent', 'CodeAgent',
-            'VisualizationAgent', 'CriticAgent', 'OptimizerAgent', 
-            'RetrievalAgent', 'PlannerAgent', 'EvalAgent'
+            'VisualizationAgent', 'CriticAgent', 'ModelEvaluationAgent', 
+            'RetrievalAgent', 'PlannerAgent', 'NLPAgent'
         ]
         if v not in valid_agents:
             raise ValueError(f'Invalid agent role: {v}')
