@@ -1,372 +1,483 @@
-""" Planner agent: NetworkX + LangGraph + Async + Monitoring + Recovery
-- Using ReAct and TOT thats tree of thought + memory recall to break into the subtask"""
-
-from typing import List, Dict, Any, Optional
-import networkx as nx
+""" Smart Planner Agent - Query-based agent routing and coordination"""
+from app.mcp.mcp_schema import TaskMessage
+from app.utils.logger import get_logger, log_execution_time
+from typing import Dict, Any, List, Optional
 import asyncio
 import time
-from concurrent.futures import ThreadPoolExecutor
-from langgraph.graph import StateGraph, END
-from app.mcp.mcp_schema import TaskManager
-from app.utils.logger import get_logger, log_execution_time
-from dataclasses import dataclass
-from enum import Enum
 
 logger = get_logger(__name__)
 
-class TaskStatus(Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    RETRYING = "retrying"
-
-@dataclass
-class ExecutionMetrics:
-    start_time: float
-    end_time: Optional[float] = None
-    duration: Optional[float] = None
-    memory_usage: Optional[float] = None
-
 class PlannerAgent:
-    def __init__(self, max_workers: int = 4, max_retries: int = 3):
+    """Smart agent coordinator that routes queries to appropriate agents"""
+    def __init__(self):
         self.name = "PlannerAgent"
-        self.max_workers = max_workers
-        self.max_retries = max_retries
-        self.executor_pool = ThreadPoolExecutor(max_workers=max_workers)
-        self.workflow = self.build_workflow()
         self.agent_registry = self._build_agent_registry()
-    
-    @log_execution_time
-    def execute(self, task: TaskManager) -> Dict[str, Any]:
-        """Main execute method for PlannerAgent"""
-        logger.info(f"PlannerAgent executing task: {task.task_id}")
-        
-        try:
-            subtasks = task.inputs.get("subtasks", [])
-            if not subtasks:
-                return {"status": "error", "message": "No subtasks provided"}
-            
-            result = asyncio.run(self.execute_advanced(subtasks))
-            
-            return {
-                "status": "success",
-                "action": "task_planning",
-                "execution_summary": result["execution_summary"],
-                "completed_tasks": len(result["completed_tasks"]),
-                "failed_tasks": len(result["failed_tasks"]),
-                "summary": f"Executed {len(result['completed_tasks'])} tasks successfully"
-            }
-            
-        except Exception as e:
-            logger.error(f"PlannerAgent execution failed: {str(e)}")
-            return {"status": "error", "message": str(e)}
-    
+        logger.info(f"Initialized {self.name} with {len(self.agent_registry)} agents")
+
     def _build_agent_registry(self) -> Dict[str, Dict[str, Any]]:
-        """Complete agent registry with all agents and retry strategies."""
+        """Registry of all available agents with their capabilities"""
         return {
             "DataAgent": {
                 "module": "app.agents.data_agent",
-                "timeout": 300,
-                "retry_strategy": "exponential_backoff"
+                "class": "DataAgent",
+                "keywords": ["data", "csv", "clean", "preprocess", "outlier", "missing", "eda", "explore"],
+                "capabilities": ["data_cleaning", "data_analysis", "outlier_detection", "eda"]
             },
             "MLAgent": {
-                "module": "app.agents.ml_agent",
-                "timeout": 1800,
-                "retry_strategy": "linear_backoff"
+                "module": "app.agents.ml_agent", 
+                "class": "MLAgent",
+                "keywords": ["ml", "machine learning", "xgboost", "random forest", "svm", "clustering", "predict"],
+                "capabilities": ["classification", "regression", "clustering", "prediction"]
             },
             "DeepLearningAgent": {
                 "module": "app.agents.Deep_learning_Agent",
-                "timeout": 3600,
-                "retry_strategy": "exponential_backoff"
+                "class": "DeepLearningAgent", 
+                "keywords": ["neural", "deep", "cnn", "rnn", "lstm", "transformer", "image", "annotation"],
+                "capabilities": ["neural_networks", "image_processing", "deep_learning", "annotation"]
             },
-            "EvalAgent": {
-                "module": "app.agents.eval_agent",
-                "timeout": 600,
-                "retry_strategy": "immediate"
+            "NLPAgent": {
+                "module": "app.agents.nlp_agent",
+                "class": "NLPAgent",
+                "keywords": ["nlp", "text", "sentiment", "embedding", "entity", "summarize", "classify text"],
+                "capabilities": ["text_processing", "sentiment_analysis", "ner", "summarization"]
             },
             "CodeAgent": {
                 "module": "app.agents.code_agent",
-                "timeout": 300,
-                "retry_strategy": "immediate"
+                "class": "CodeAgent", 
+                "keywords": ["code", "python", "generate", "execute", "review", "debug", "script"],
+                "capabilities": ["code_generation", "code_execution", "code_review"]
             },
             "VisualizationAgent": {
                 "module": "app.agents.VisualizationAgent",
-                "timeout": 300,
-                "retry_strategy": "immediate"
+                "class": "VisualizationAgent",
+                "keywords": ["plot", "chart", "graph", "visualize", "histogram", "scatter", "dashboard"],
+                "capabilities": ["plotting", "visualization", "charts", "graphs"]
+            },
+            "ModelEvaluationAgent": {
+                "module": "app.agents.model_evaluation_agent",
+                "class": "ModelEvaluationAgent",
+                "keywords": ["evaluate", "metrics", "accuracy", "optimize", "tune", "benchmark", "performance"],
+                "capabilities": ["model_evaluation", "optimization", "benchmarking"]
             },
             "CriticAgent": {
-                "module": "app.agents.CriticAgent",
-                "timeout": 600,
-                "retry_strategy": "linear_backoff"
-            },
-            "OptimizerAgent": {
-                "module": "app.agents.OptimizerAgent",
-                "timeout": 1200,
-                "retry_strategy": "exponential_backoff"
+                "module": "app.agents.CriticAgent", 
+                "class": "CriticAgent",
+                "keywords": ["review", "analyze", "check", "critique", "assess", "quality"],
+                "capabilities": ["quality_review", "analysis", "routing"]
             },
             "RetrievalAgent": {
                 "module": "app.agents.RetrievalAgent",
-                "timeout": 300,
-                "retry_strategy": "immediate"
+                "class": "RetrievalAgent",
+                "keywords": ["retrieve", "search", "rag", "knowledge", "context", "find"],
+                "capabilities": ["data_retrieval", "rag", "search", "context_enhancement"]
             }
         }
 
     @log_execution_time
-    def build_advanced_plan(self, subtasks: List[TaskManager]) -> Dict[str, Any]:
-        """Advanced planning with parallel groups and metrics."""
-        logger.info(f"Building advanced execution plan for {len(subtasks)} tasks")
-        G = nx.DiGraph()
-        
-        # Add nodes with enhanced metadata
-        for task in subtasks:
-            agent_info = self.agent_registry.get(task.agent_role, {})
-            G.add_node(
-                task.task_id,
-                task=task,
-                role=task.agent_role,
-                status=TaskStatus.PENDING,
-                metrics=ExecutionMetrics(start_time=0),
-                retry_count=0,
-                timeout=agent_info.get("timeout", 300)
-            )
-        
-        # Add dependencies
-        for task in subtasks:
-            for dep in task.dependencies:
-                if dep in G.nodes:
-                    G.add_edge(dep, task.task_id)
-        
-        # Validate DAG
-        if not nx.is_directed_acyclic_graph(G):
-            raise ValueError("Cycle detected in task dependencies")
-        
-        # Find parallel execution groups
-        parallel_groups = self._find_parallel_groups(G)
-        execution_order = list(nx.topological_sort(G))
-        
-        return {
-            "graph": G,
-            "execution_order": execution_order,
-            "parallel_groups": parallel_groups,
-            "tasks": {t.task_id: t for t in subtasks}
-        }
-    
-    def _find_parallel_groups(self, G: nx.DiGraph) -> List[List[str]]:
-        """Find tasks that can run in parallel."""
-        parallel_groups = []
-        remaining_nodes = set(G.nodes())
-        
-        while remaining_nodes:
-            ready_nodes = [
-                node for node in remaining_nodes 
-                if all(pred not in remaining_nodes for pred in G.predecessors(node))
-            ]
-            
-            if ready_nodes:
-                parallel_groups.append(ready_nodes)
-                remaining_nodes -= set(ready_nodes)
-            else:
-                break
-                
-        return parallel_groups
-
-    def build_workflow(self) -> StateGraph:
-        """Build advanced LangGraph workflow."""
-        workflow = StateGraph(dict)
-        
-        workflow.add_node("validate_deps", self.validate_dependencies)
-        workflow.add_node("execute_parallel", self.execute_parallel_tasks)
-        workflow.add_node("monitor_progress", self.monitor_execution)
-        workflow.add_node("handle_failures", self.handle_task_failures)
-        workflow.add_node("finalize", self.finalize_execution)
-        
-        workflow.set_entry_point("validate_deps")
-        workflow.add_edge("validate_deps", "execute_parallel")
-        workflow.add_edge("execute_parallel", "monitor_progress")
-        workflow.add_conditional_edges(
-            "monitor_progress",
-            self.should_handle_failures,
-            {
-                "handle_failures": "handle_failures",
-                "finalize": "finalize"
-            }
-        )
-        workflow.add_edge("handle_failures", "execute_parallel")
-        workflow.add_edge("finalize", END)
-        
-        return workflow.compile()
-
-    async def validate_dependencies(self, state: dict) -> dict:
-        """Validate all task dependencies."""
-        logger.info("Validating task dependencies...")
-        plan = state["plan"]
-        
-        # Validate DAG structure
-        if not nx.is_directed_acyclic_graph(plan["graph"]):
-            raise ValueError("Invalid task dependencies: cycle detected")
-        
-        logger.info(f"Dependencies validated for {len(plan['execution_order'])} tasks")
-        return state
-
-    async def execute_parallel_tasks(self, state: dict) -> dict:
-        """Execute tasks in parallel groups."""
-        group_id = state.get("current_parallel_group", 0)
-        groups = state["plan"]["parallel_groups"]
-        
-        if group_id < len(groups):
-            tasks = groups[group_id]
-            logger.info(f"Executing parallel group {group_id}: {tasks}")
-            
-            # Execute tasks in parallel
-            results = await asyncio.gather(*[
-                self.execute_agent_async(state["plan"]["tasks"][tid]) 
-                for tid in tasks
-            ])
-            
-            # Process results
-            for task_id, result in zip(tasks, results):
-                state["results"][task_id] = result
-                if result["status"] == TaskStatus.COMPLETED.value:
-                    state["completed_tasks"].add(task_id)
-                else:
-                    state["failed_tasks"].append(task_id)
-            
-            state["current_parallel_group"] = group_id + 1
-        
-        return state
-    
-    async def monitor_execution(self, state: dict) -> dict:
-        """Monitor execution progress."""
-        completed = len(state["completed_tasks"])
-        total = len(state["plan"]["execution_order"])
-        failed = len(state["failed_tasks"])
-        
-        logger.info(f"Progress: {completed}/{total} completed, {failed} failed")
-        return state
-    
-    def should_handle_failures(self, state: dict) -> str:
-        """Decide whether to handle failures or finalize."""
-        return "handle_failures" if state["failed_tasks"] else "finalize"
-    
-    async def handle_task_failures(self, state: dict) -> dict:
-        """Handle failed tasks with retry logic."""
-        failed_tasks = state["failed_tasks"].copy()
-        logger.warning(f"Handling {len(failed_tasks)} failed tasks...")
-        
-        for task_id in failed_tasks:
-            node = state["plan"]["graph"].nodes[task_id]
-            
-            if node["retry_count"] < self.max_retries:
-                node["retry_count"] += 1
-                agent_info = self.agent_registry.get(node["role"], {})
-                retry_strategy = agent_info.get("retry_strategy", "immediate")
-                
-                # Apply retry delay based on strategy
-                if retry_strategy == "exponential_backoff":
-                    delay = 2 ** node["retry_count"]
-                elif retry_strategy == "linear_backoff":
-                    delay = node["retry_count"] * 5
-                else:
-                    delay = 1
-                
-                logger.info(f"Retrying task {task_id} in {delay}s (attempt {node['retry_count']})")
-                await asyncio.sleep(delay)
-                
-                # Retry the task
-                result = await self.execute_agent_async(node["task"])
-                state["results"][task_id] = result
-                
-                if result["status"] == TaskStatus.COMPLETED.value:
-                    state["completed_tasks"].add(task_id)
-                    state["failed_tasks"].remove(task_id)
-                    logger.info(f"Task {task_id} succeeded on retry")
-            else:
-                logger.error(f"Task {task_id} failed after {self.max_retries} retries")
-        
-        return state
-    
-    async def finalize_execution(self, state: dict) -> dict:
-        """Finalize execution and generate report."""
-        logger.info("Finalizing execution")
-        end_time = time.time()
-        total_time = end_time - state["start_time"]
-        
-        state["execution_summary"] = {
-            "total_duration": total_time,
-            "success_rate": len(state["completed_tasks"]) / len(state["plan"]["execution_order"]),
-            "failed_count": len(state["failed_tasks"])
-        }
-        
-        return state
-
-    async def execute_agent_async(self, task: TaskManager) -> dict:
-        """Execute agent asynchronously with timeout and monitoring."""
-        agent_info = self.agent_registry.get(task.agent_role, {})
-        start_time = time.time()
-        
+    def execute(self, task: TaskMessage) -> Dict[str, Any]:
+        """Smart query routing to appropriate agent"""
         try:
-            # Dynamic import
-            module_path = agent_info.get("module")
-            if not module_path:
-                return {"status": TaskStatus.FAILED.value, "error": f"Unknown agent: {task.agent_role}"}
+            query = task.inputs.get("query", "").lower()
             
-            module = __import__(module_path, fromlist=[task.agent_role])
-            agent_class = getattr(module, task.agent_role)
+            # Analyze query and determine best agent
+            best_agent = self._analyze_query_and_route(query, task.inputs)
+            
+            if best_agent:
+                return self._execute_agent(best_agent, task)
+            else:
+                return self._multi_agent_execution(task)
+                
+        except Exception as e:
+            return {"status": "error", "errors": [str(e)]}
+
+    def _analyze_query_and_route(self, query: str, inputs: Dict[str, Any]) -> Optional[str]:
+        """Advanced smart query analysis with NLP-based routing"""
+        
+        # Multi-dimensional analysis
+        intent_scores = self._analyze_intent(query)
+        keyword_scores = self._analyze_keywords(query)
+        context_scores = self._analyze_context(query, inputs)
+        semantic_scores = self._analyze_semantics(query)
+        
+        # Combine all scoring dimensions
+        final_scores = {}
+        
+        for agent_name in self.agent_registry.keys():
+            total_score = (
+                intent_scores.get(agent_name, 0) * 0.4 +      # Intent weight: 40%
+                keyword_scores.get(agent_name, 0) * 0.3 +     # Keyword weight: 30%
+                context_scores.get(agent_name, 0) * 0.2 +     # Context weight: 20%
+                semantic_scores.get(agent_name, 0) * 0.1      # Semantic weight: 10%
+            )
+            
+            if total_score > 0:
+                final_scores[agent_name] = total_score
+        
+        # Return the highest scoring agent with confidence threshold
+        if final_scores:
+            best_agent = max(final_scores, key=final_scores.get)
+            confidence = final_scores[best_agent]
+            
+            # Only route if confidence is above threshold
+            if confidence >= 2.0:  # Minimum confidence threshold
+                logger.info(f"Smart routing: {best_agent} (confidence: {confidence:.2f})")
+                return best_agent
+            else:
+                logger.info(f"Low confidence ({confidence:.2f}), using multi-agent approach")
+                return None
+        
+        return None
+    
+    def _analyze_intent(self, query: str) -> Dict[str, float]:
+        """Analyze user intent from query structure and verbs"""
+        intent_scores = {}
+        
+        # Action-based intent detection
+        action_patterns = {
+            "DataAgent": ["clean", "preprocess", "explore", "analyze data", "load", "import", "filter"],
+            "CodeAgent": ["generate", "create code", "write", "execute", "run", "debug", "review code"],
+            "MLAgent": ["train", "predict", "classify", "cluster", "fit model", "machine learning"],
+            "DeepLearningAgent": ["neural", "deep learning", "cnn", "rnn", "transformer", "annotate"],
+            "NLPAgent": ["analyze text", "sentiment", "summarize", "extract", "classify text"],
+            "VisualizationAgent": ["plot", "visualize", "chart", "graph", "show", "display"],
+            "ModelEvaluationAgent": ["evaluate", "optimize", "tune", "benchmark", "improve", "assess"],
+            "CriticAgent": ["review", "critique", "analyze", "check", "assess", "examine", "inspect"]
+        }
+        
+        for agent, actions in action_patterns.items():
+            score = 0
+            for action in actions:
+                if action in query:
+                    score += 5  # High weight for action verbs
+                    # Bonus for action at start of query
+                    if query.startswith(action):
+                        score += 3
+            intent_scores[agent] = score
+        
+        return intent_scores
+    
+    def _analyze_keywords(self, query: str) -> Dict[str, float]:
+        """Enhanced keyword analysis with synonyms and context"""
+        keyword_scores = {}
+        
+        # Enhanced keyword patterns with synonyms
+        enhanced_keywords = {
+            "DataAgent": {
+                "primary": ["data", "dataset", "csv", "dataframe", "table"],
+                "secondary": ["clean", "preprocess", "outlier", "missing", "eda", "explore"],
+                "synonyms": ["information", "records", "rows", "columns", "file"]
+            },
+            "CodeAgent": {
+                "primary": ["code", "python", "script", "function", "class"],
+                "secondary": ["generate", "execute", "debug", "review", "syntax"],
+                "synonyms": ["program", "algorithm", "implementation", "logic"]
+            },
+            "NLPAgent": {
+                "primary": ["text", "nlp", "sentiment", "language"],
+                "secondary": ["analyze", "extract", "summarize", "classify"],
+                "synonyms": ["document", "content", "words", "sentences"]
+            },
+            "MLAgent": {
+                "primary": ["model", "ml", "machine learning", "predict"],
+                "secondary": ["train", "fit", "classify", "regression"],
+                "synonyms": ["algorithm", "learning", "prediction", "classification"]
+            },
+            "CriticAgent": {
+                "primary": ["review", "critique", "analyze", "check", "assess"],
+                "secondary": ["quality", "evaluate", "examine", "inspect", "audit"],
+                "synonyms": ["judge", "rate", "grade", "score", "validate"]
+            },
+            "VisualizationAgent": {
+                "primary": ["plot", "chart", "graph", "visualize", "dashboard"],
+                "secondary": ["histogram", "scatter", "bar", "line", "pie"],
+                "synonyms": ["display", "show", "render", "draw", "create"]
+            }
+        }
+        
+        for agent, keyword_groups in enhanced_keywords.items():
+            score = 0
+            
+            # Primary keywords (high weight)
+            for keyword in keyword_groups["primary"]:
+                if keyword in query:
+                    score += 4
+                    if f" {keyword} " in f" {query} ":
+                        score += 2  # Exact match bonus
+            
+            # Secondary keywords (medium weight)
+            for keyword in keyword_groups["secondary"]:
+                if keyword in query:
+                    score += 2
+            
+            # Synonyms (low weight)
+            for keyword in keyword_groups["synonyms"]:
+                if keyword in query:
+                    score += 1
+            
+            keyword_scores[agent] = score
+        
+        return keyword_scores
+    
+    def _analyze_context(self, query: str, inputs: Dict[str, Any]) -> Dict[str, float]:
+        """Analyze context from inputs and query structure"""
+        context_scores = {}
+        
+        # Input-based context analysis
+        input_patterns = {
+            "DataAgent": ["data_path", "csv_file", "dataframe", "dataset", "table"],
+            "CodeAgent": ["code", "code_content", "script", "python_code", "function"],
+            "ModelEvaluationAgent": ["model", "model_metrics", "accuracy", "performance"],
+            "NLPAgent": ["text_data", "text", "documents", "corpus", "sentences"],
+            "VisualizationAgent": ["plot_type", "chart_data", "x_axis", "y_axis"]
+        }
+        
+        for agent, input_keys in input_patterns.items():
+            score = 0
+            for key in input_keys:
+                if key in inputs:
+                    score += 6  # High weight for relevant inputs
+                    # Bonus if input has actual data
+                    if inputs[key] and str(inputs[key]).strip():
+                        score += 2
+            context_scores[agent] = score
+        
+        return context_scores
+    
+    def _analyze_semantics(self, query: str) -> Dict[str, float]:
+        """Semantic analysis using word relationships and domain knowledge"""
+        semantic_scores = {}
+        
+        # Domain-specific semantic patterns
+        semantic_domains = {
+            "DataAgent": {
+                "data_science": ["pandas", "numpy", "statistics", "analysis"],
+                "data_quality": ["clean", "validate", "quality", "integrity"]
+            },
+            "MLAgent": {
+                "algorithms": ["xgboost", "random forest", "svm", "clustering"],
+                "workflow": ["pipeline", "training", "validation", "testing"]
+            },
+            "DeepLearningAgent": {
+                "architectures": ["cnn", "rnn", "lstm", "transformer", "bert"],
+                "tasks": ["image", "vision", "sequence", "attention"]
+            }
+        }
+        
+        for agent, domains in semantic_domains.items():
+            score = 0
+            for domain, terms in domains.items():
+                domain_matches = sum(1 for term in terms if term in query)
+                if domain_matches > 0:
+                    score += domain_matches * 2
+                    if domain_matches >= 2:
+                        score += 3
+            semantic_scores[agent] = score
+        
+        return semantic_scores
+
+    def _execute_agent(self, agent_name: str, task: TaskMessage) -> Dict[str, Any]:
+        """Execute specific agent"""
+        try:
+            agent_info = self.agent_registry[agent_name]
+            
+            # Dynamic import and execution
+            module = __import__(agent_info["module"], fromlist=[agent_info["class"]])
+            agent_class = getattr(module, agent_info["class"])
             agent = agent_class()
             
-            # Execute with timeout
-            result = await asyncio.wait_for(
-                asyncio.get_event_loop().run_in_executor(
-                    self.executor_pool,
-                    agent.execute,
-                    task
-                ),
-                timeout=agent_info.get("timeout", 300)
-            )
+            # Execute the agent
+            start_time = time.time()
+            result = agent.execute(task)
+            execution_time = time.time() - start_time
             
-            end_time = time.time()
             return {
-                "status": TaskStatus.COMPLETED.value,
+                "status": "success",
+                "agent_used": agent_name,
+                "execution_time": f"{execution_time:.2f}s",
                 "result": result,
-                "agent": task.agent_role,
-                "duration": end_time - start_time
+                "message": f"Query successfully handled by {agent_name}"
             }
             
-        except asyncio.TimeoutError:
-            return {
-                "status": TaskStatus.FAILED.value,
-                "error": f"Task timeout after {agent_info.get('timeout', 300)}s",
-                "agent": task.agent_role
-            }
         except Exception as e:
             return {
-                "status": TaskStatus.FAILED.value,
-                "error": str(e),
-                "agent": task.agent_role
+                "status": "error", 
+                "agent_used": agent_name,
+                "errors": [f"Agent {agent_name} failed: {str(e)}"]
             }
 
-    @log_execution_time
-    async def execute_advanced(self, subtasks: List[TaskManager]) -> Dict[str, Any]:
-        """Advanced execution with full monitoring and recovery."""
-        logger.info(f"Starting advanced execution of {len(subtasks)} tasks")
+    def _multi_agent_execution(self, task: TaskMessage) -> Dict[str, Any]:
+        """Execute multiple agents for complex queries"""
+        try:
+            query = task.inputs.get("query", "").lower()
+            results = {}
+            
+            # Determine which agents might be relevant
+            relevant_agents = self._get_relevant_agents(query, task.inputs)
+            
+            if not relevant_agents:
+                # Fallback to CriticAgent for routing
+                return self._execute_agent("CriticAgent", task)
+            
+            # Execute relevant agents
+            for agent_name in relevant_agents[:3]:  # Limit to top 3 agents
+                try:
+                    result = self._execute_agent(agent_name, task)
+                    if result.get("status") == "success":
+                        results[agent_name] = result
+                except Exception as e:
+                    logger.warning(f"Agent {agent_name} failed: {str(e)}")
+            
+            return {
+                "status": "success",
+                "execution_type": "multi_agent",
+                "agents_used": list(results.keys()),
+                "results": results,
+                "message": f"Query handled by {len(results)} agents"
+            }
+            
+        except Exception as e:
+            return {"status": "error", "errors": [str(e)]}
+
+    def _get_relevant_agents(self, query: str, inputs: Dict[str, Any]) -> List[str]:
+        """Get list of potentially relevant agents"""
+        relevant = []
         
-        # Build advanced plan
-        plan = self.build_advanced_plan(subtasks)
-        logger.info(f"Parallel groups: {len(plan['parallel_groups'])}")
+        # Check for data-related content
+        if any(word in query for word in ["data", "dataset", "csv"]) or "data_path" in inputs:
+            relevant.append("DataAgent")
         
-        # Initialize state
-        state = {
-            "plan": plan,
-            "results": {},
-            "failed_tasks": [],
-            "completed_tasks": set(),
-            "current_parallel_group": 0,
-            "start_time": time.time()
+        # Check for code-related content  
+        if any(word in query for word in ["code", "python", "script"]) or "code" in inputs:
+            relevant.append("CodeAgent")
+        
+        # Check for ML/model content
+        if any(word in query for word in ["model", "predict", "train", "ml"]) or "model" in inputs:
+            relevant.extend(["MLAgent", "DeepLearningAgent", "ModelEvaluationAgent"])
+        
+        # Check for text/NLP content
+        if any(word in query for word in ["text", "nlp", "sentiment"]) or "text_data" in inputs:
+            relevant.append("NLPAgent")
+        
+        # Check for visualization content
+        if any(word in query for word in ["plot", "chart", "visualize"]):
+            relevant.append("VisualizationAgent")
+        
+        return relevant
+
+    def get_agent_capabilities(self) -> Dict[str, List[str]]:
+        """Get capabilities of all registered agents"""
+        return {
+            agent_name: agent_info["capabilities"] 
+            for agent_name, agent_info in self.agent_registry.items()
         }
+
+    def route_query(self, query: str, inputs: Dict[str, Any] = None) -> str:
+        """Public method to determine which agent should handle a query"""
+        inputs = inputs or {}
+        best_agent = self._analyze_query_and_route(query.lower(), inputs)
+        return best_agent or "CriticAgent"  # Fallback to CriticAgent
+
+    def execute_pipeline(self, tasks: List[TaskMessage]) -> Dict[str, Any]:
+        """Execute a pipeline of tasks with intelligent routing"""
+        try:
+            results = []
+            
+            for task in tasks:
+                # Route each task to appropriate agent
+                result = self.execute(task)
+                results.append({
+                    "task_id": task.task_id,
+                    "result": result
+                })
+            
+            return {
+                "status": "success",
+                "pipeline_results": results,
+                "total_tasks": len(tasks),
+                "message": "Pipeline execution completed"
+            }
+            
+        except Exception as e:
+            return {"status": "error", "errors": [str(e)]}
+
+    def get_agent_status(self) -> Dict[str, str]:
+        """Get status of all registered agents"""
+        status = {}
         
-        # Execute workflow
-        final_state = await self.workflow.ainvoke(state)
+        for agent_name, agent_info in self.agent_registry.items():
+            try:
+                # Try to import the agent
+                module = __import__(agent_info["module"], fromlist=[agent_info["class"]])
+                getattr(module, agent_info["class"])
+                status[agent_name] = "available"
+            except Exception as e:
+                status[agent_name] = f"unavailable: {str(e)}"
         
-        logger.info(f"Advanced execution completed: {final_state['execution_summary']}")
-        return final_state
+        return status
+    
+    def validate_agents(self) -> Dict[str, Any]:
+        """Validate all agents are working properly"""
+        validation_results = {}
+        
+        for agent_name, agent_info in self.agent_registry.items():
+            try:
+                # Try to create agent instance
+                module = __import__(agent_info["module"], fromlist=[agent_info["class"]])
+                agent_class = getattr(module, agent_info["class"])
+                agent = agent_class()
+                
+                validation_results[agent_name] = {
+                    "status": "valid",
+                    "class_name": agent_info["class"],
+                    "module": agent_info["module"]
+                }
+            except Exception as e:
+                validation_results[agent_name] = {
+                    "status": "invalid",
+                    "error": str(e),
+                    "class_name": agent_info["class"],
+                    "module": agent_info["module"]
+                }
+        
+        return validation_results
+
+    def test_routing(self, test_queries: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Advanced routing test with detailed analysis"""
+        results = {}
+        
+        for query in test_queries:
+            intent_scores = self._analyze_intent(query)
+            keyword_scores = self._analyze_keywords(query)
+            best_agent = self.route_query(query)
+            
+            results[query] = {
+                "routed_to": best_agent,
+                "intent_analysis": intent_scores,
+                "keyword_analysis": keyword_scores,
+                "confidence": max(intent_scores.values()) if intent_scores else 0
+            }
+        
+        return results
+    
+    def explain_routing(self, query: str, inputs: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Explain why a query was routed to a specific agent"""
+        inputs = inputs or {}
+        
+        intent_scores = self._analyze_intent(query)
+        keyword_scores = self._analyze_keywords(query)
+        context_scores = self._analyze_context(query, inputs)
+        semantic_scores = self._analyze_semantics(query)
+        
+        best_agent = self._analyze_query_and_route(query, inputs)
+        
+        return {
+            "query": query,
+            "routed_to": best_agent,
+            "analysis": {
+                "intent_scores": intent_scores,
+                "keyword_scores": keyword_scores,
+                "context_scores": context_scores,
+                "semantic_scores": semantic_scores
+            },
+            "reasoning": f"Routed to {best_agent}" if best_agent else "Multi-agent approach"
+        }
