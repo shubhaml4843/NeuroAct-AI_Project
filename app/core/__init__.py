@@ -1,1 +1,1 @@
-"""Core logic for planning, RL, and execution."""
+"""Core functionality for NeuroAct AI System"""
