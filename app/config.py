@@ -24,6 +24,19 @@ class Settings:
     HUGGINGFACE_TOKEN: str = os.getenv("HUGGINGFACE_TOKEN", "")
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
     
+    # Search API URLs
+    DUCKDUCKGO_API: str = os.getenv("DUCKDUCKGO_API", "https://api.duckduckgo.com/")
+    WIKIPEDIA_API: str = os.getenv("WIKIPEDIA_API", "https://en.wikipedia.org/api/rest_v1/")
+    ARXIV_API: str = os.getenv("ARXIV_API", "http://export.arxiv.org/api/query")
+    
+    # Cache Configuration
+    CACHE_DIR: str = os.getenv("CACHE_DIR", str(ROOT_DIR / "cache"))
+    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "3600"))  # 1 hour
+    
+    # Rate Limiting
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "10"))
+    RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))  # 60 seconds
+    
     # Vector Store Configuration
     VECTOR_DB: str = os.getenv("VECTOR_DB", "faiss")
     VECTOR_DIR: str = os.getenv("VECTOR_DIR", str(VECTOR_DIR))
@@ -91,3 +104,25 @@ def is_feature_enabled(feature: str) -> bool:
         "mcp": settings.ENABLE_MCP
     }
     return feature_map.get(feature.lower(), False)
+
+def get_search_apis() -> dict:
+    """Get search API configurations."""
+    return {
+        "duckduckgo": settings.DUCKDUCKGO_API,
+        "wikipedia": settings.WIKIPEDIA_API,
+        "arxiv": settings.ARXIV_API
+    }
+
+def get_cache_config() -> dict:
+    """Get cache configuration."""
+    return {
+        "cache_dir": settings.CACHE_DIR,
+        "ttl": settings.CACHE_TTL
+    }
+
+def get_rate_limit_config() -> dict:
+    """Get rate limiting configuration."""
+    return {
+        "requests": settings.RATE_LIMIT_REQUESTS,
+        "window": settings.RATE_LIMIT_WINDOW
+    }

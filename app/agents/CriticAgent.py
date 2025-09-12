@@ -28,6 +28,24 @@ class CriticAgent:
                 logger.warning(f"Tool {tool} not available")
         return tools
     
+    def get_capabilities(self) -> Dict[str, Any]:
+        """Return agent capabilities and available tools"""
+        return {
+            "name": self.name,
+            "description": "Smart routing agent for multi-agent coordination",
+            "capabilities": [
+                "Query intent analysis",
+                "Agent routing and selection", 
+                "Multi-agent coordination",
+                "Comprehensive analysis"
+            ],
+            "available_tools": self.available_tools,
+            "supported_intents": [
+                "code_review", "model_review", "data_review", 
+                "nlp_review", "visualization_review", "comprehensive"
+            ]
+        }
+    
     @log_execution_time
     def execute(self, task: TaskMessage) -> Dict[str, Any]:
         """Route query to appropriate specialized agent"""
@@ -86,93 +104,13 @@ class CriticAgent:
         
         return "comprehensive"
 
-    def _route_to_code_agent(self, task: TaskMessage) -> Dict[str, Any]:
-        """Route to CodeAgent for code review"""
-        try:
-            from app.agents.code_agent import CodeAgent
-            
-            code_agent = CodeAgent()
-            
-            # Extract code from inputs
-            code_content = task.inputs.get("code_content", task.inputs.get("code", ""))
-            
-            # Determine the specific action based on query
-            query = task.inputs.get("query", "").lower()
-            
-            if "review" in query or "check" in query or "analyze" in query:
-                # Use CodeAgent's review_code method directly
-                result = code_agent.review_code({"code": code_content})
-            elif "generate" in query or "create" in query:
-                # Use CodeAgent's generate_code method
-                result = code_agent.generate_code(task.inputs)
-            elif "execute" in query or "run" in query:
-                # Use CodeAgent's execute_code method
-                result = code_agent.execute_code({"code": code_content})
-            else:
-                # Default to review if code is provided
-                if code_content:
-                    result = code_agent.review_code({"code": code_content})
-                else:
-                    result = code_agent.execute(task)
-            
-            return {
-                "status": "success",
-                "routed_to": "CodeAgent",
-                "analysis_type": "Code Analysis",
-                "result": result,
-                "message": f"Code analysis completed by CodeAgent: {result.get('action', 'unknown')}"
-            }
-            
-        except Exception as e:
-            return {"status": "error", "errors": [f"CodeAgent routing failed: {str(e)}"]}
-
-    def _route_to_model_evaluation_agent(self, task: TaskMessage) -> Dict[str, Any]:
-        """Route to ModelEvaluationAgent for model review"""
-        try:
-            from app.agents.model_evaluation_agent import ModelEvaluationAgent
-            
-            eval_agent = ModelEvaluationAgent()
-            
-            # Modify task for model evaluation
-            eval_task = TaskMessage(
-                task_id=task.task_id,
-                agent_role="ModelEvaluationAgent",
-                inputs=task.inputs,
-                dependencies=task.dependencies
-            )
-            
-            result = eval_agent.execute(eval_task)
-            
-            return {
-                "status": "success",
-                "routed_to": "ModelEvaluationAgent",
-                "analysis_type": "Model Evaluation",
-                "result": result,
-                "message": "Model evaluation completed by ModelEvaluationAgent"
-            }
-            
-        except Exception as e:
-            return {"status": "error", "errors": [f"ModelEvaluationAgent routing failed: {str(e)}"]}
-
     def _route_to_data_agent(self, task: TaskMessage) -> Dict[str, Any]:
-        """Route to DataAgent for data review"""
+        """Route to DataAgent for data analysis"""
         try:
             from app.agents.data_agent import DataAgent
             
             data_agent = DataAgent()
-            
-            # Modify task for data analysis
-            data_task = TaskMessage(
-                task_id=task.task_id,
-                agent_role="DataAgent",
-                inputs={
-                    **task.inputs,
-                    "query": f"analyze {task.inputs.get('query', '')}"
-                },
-                dependencies=task.dependencies
-            )
-            
-            result = data_agent.execute(data_task)
+            result = data_agent.execute(task)
             
             return {
                 "status": "success",
@@ -185,22 +123,51 @@ class CriticAgent:
         except Exception as e:
             return {"status": "error", "errors": [f"DataAgent routing failed: {str(e)}"]}
 
+    def _route_to_code_agent(self, task: TaskMessage) -> Dict[str, Any]:
+        """Route to CodeAgent for code analysis"""
+        try:
+            from app.agents.code_agent import CodeAgent
+            
+            code_agent = CodeAgent()
+            result = code_agent.execute(task)
+            
+            return {
+                "status": "success",
+                "routed_to": "CodeAgent",
+                "analysis_type": "Code Analysis",
+                "result": result,
+                "message": "Code analysis completed by CodeAgent"
+            }
+            
+        except Exception as e:
+            return {"status": "error", "errors": [f"CodeAgent routing failed: {str(e)}"]}
+
+    def _route_to_model_evaluation_agent(self, task: TaskMessage) -> Dict[str, Any]:
+        """Route to ModelEvaluationAgent for model analysis"""
+        try:
+            from app.agents.model_evaluation_agent import ModelEvaluationAgent
+            
+            eval_agent = ModelEvaluationAgent()
+            result = eval_agent.execute(task)
+            
+            return {
+                "status": "success",
+                "routed_to": "ModelEvaluationAgent",
+                "analysis_type": "Model Evaluation",
+                "result": result,
+                "message": "Model evaluation completed by ModelEvaluationAgent"
+            }
+            
+        except Exception as e:
+            return {"status": "error", "errors": [f"ModelEvaluationAgent routing failed: {str(e)}"]}
+
     def _route_to_nlp_agent(self, task: TaskMessage) -> Dict[str, Any]:
-        """Route to NLPAgent for NLP review"""
+        """Route to NLPAgent for NLP analysis"""
         try:
             from app.agents.nlp_agent import NLPAgent
             
             nlp_agent = NLPAgent()
-            
-            # Modify task for NLP analysis
-            nlp_task = TaskMessage(
-                task_id=task.task_id,
-                agent_role="NLPAgent",
-                inputs=task.inputs,
-                dependencies=task.dependencies
-            )
-            
-            result = nlp_agent.execute(nlp_task)
+            result = nlp_agent.execute(task)
             
             return {
                 "status": "success",
@@ -214,59 +181,61 @@ class CriticAgent:
             return {"status": "error", "errors": [f"NLPAgent routing failed: {str(e)}"]}
 
     def _route_to_visualization_agent(self, task: TaskMessage) -> Dict[str, Any]:
-        """Route to VisualizationAgent for visualization review"""
+        """Route to VisualizationAgent for plotting and charts"""
         try:
             from app.agents.VisualizationAgent import VisualizationAgent
+            from app.agents.data_agent import DataAgent
             
-            viz_agent = VisualizationAgent()
+            # First get statistical analysis from DataAgent if needed
+            query = task.inputs.get("query", "").lower()
+            statistical_results = {}
             
-            # Modify task for visualization
-            viz_task = TaskMessage(
+            if any(word in query for word in ['normal', 'normality', 'outlier', 'distribution']):
+                data_agent = DataAgent()
+                data_result = data_agent.perform_normality_and_outlier_analysis(
+                    task.inputs.get("data", []), 
+                    task.inputs.get("column")
+                )
+                if data_result.get("status") == "success":
+                    statistical_results = data_result.get("statistical_analysis", {})
+            
+            # Add statistical results to task inputs
+            enhanced_inputs = task.inputs.copy()
+            enhanced_inputs["statistical_analysis"] = statistical_results
+            
+            # Create enhanced task
+            enhanced_task = TaskMessage(
                 task_id=task.task_id,
-                agent_role="VisualizationAgent",
-                inputs=task.inputs,
-                dependencies=task.dependencies
+                inputs=enhanced_inputs
             )
             
-            result = viz_agent.execute(viz_task)
+            # Route to VisualizationAgent
+            viz_agent = VisualizationAgent()
+            result = viz_agent.execute(enhanced_task)
             
             return {
                 "status": "success",
                 "routed_to": "VisualizationAgent",
-                "analysis_type": "Visualization Analysis",
+                "analysis_type": "Data Visualization with Statistical Analysis",
                 "result": result,
-                "message": "Visualization analysis completed by VisualizationAgent"
+                "statistical_context": statistical_results,
+                "message": "Visualization with statistical analysis completed"
             }
             
         except Exception as e:
-            return {"status": "error", "errors": [f"VisualizationAgent routing failed: {str(e)}"]}
+            return {"status": "error", "errors": [f"Visualization routing failed: {str(e)}"]}
 
     def _comprehensive_review(self, task: TaskMessage) -> Dict[str, Any]:
-        """Perform comprehensive review using multiple agents"""
+        """Perform comprehensive analysis using multiple agents"""
         try:
-            query = task.inputs.get("query", "")
-            code_content = task.inputs.get("code", task.inputs.get("code_content", ""))
+            query = task.inputs.get("query", "").lower()
             
-            review_results = {
-                "status": "success",
-                "action": "comprehensive_review",
-                "reviews": [],
-                "overall_score": 0,
-                "recommendations": []
-            }
-            
-            # Code review if code is provided
-            if code_content:
-                code_review = self._route_to_code_agent(task)
-                review_results["reviews"].append({
-                    "type": "code_review",
-                    "result": code_review
-                })
-            
-            # Generate summary
-            review_results["summary"] = f"Comprehensive review completed with {len(review_results['reviews'])} analyses"
-            
-            return review_results
+            # If query involves visualization, route to visualization agent
+            if any(word in query for word in ['plot', 'chart', 'graph', 'visualize']):
+                return self._route_to_visualization_agent(task)
+            else:
+                # Otherwise route to DataAgent as primary handler
+                return self._route_to_data_agent(task)
             
         except Exception as e:
-            return {"status": "error", "errors": [f"Comprehensive review failed: {str(e)}"]}
+            return {"status": "error", "errors": [str(e)], "agent": self.name}

@@ -125,8 +125,8 @@ class DataAgent:
         if any(keyword in query for keyword in clean_keywords):
             return "clean"
         
-        # Analysis intents
-        analyze_keywords = ["analyze", "statistics", "summary", "describe", "insights", "patterns", "correlations"]
+        # Analysis intents (including statistical tests)
+        analyze_keywords = ["analyze", "statistics", "summary", "describe", "insights", "patterns", "correlations", "normal", "normality", "outlier", "outliers", "distribution", "shapiro", "anderson"]
         if any(keyword in query for keyword in analyze_keywords):
             return "analyze"
         
@@ -297,13 +297,38 @@ class DataAgent:
             if "correlation" in query.lower() and len(numeric_cols) > 1:
                 analysis_results["correlations"] = df[numeric_cols].corr().to_dict()
             
+            # Statistical tests if requested
+            if any(word in query.lower() for word in ['normal', 'normality', 'outlier', 'distribution', 'shapiro', 'anderson']):
+                numeric_cols = df.select_dtypes(include=[np.number]).columns
+                if len(numeric_cols) > 0:
+                    # Perform statistical analysis on first numeric column
+                    target_col = numeric_cols[0]
+                    tests = []
+                    
+                    if any(word in query.lower() for word in ['normal', 'normality', 'shapiro']):
+                        tests.extend(['shapiro_wilk', 'anderson_darling', 'kolmogorov_smirnov'])
+                    
+                    if any(word in query.lower() for word in ['outlier', 'outliers']):
+                        tests.append('outlier_detection')
+                    
+                    if not tests:  # Default tests
+                        tests = ['shapiro_wilk', 'outlier_detection']
+                    
+                    statistical_results = self._perform_statistical_analysis(df, target_col, tests)
+                    analysis_results["statistical_tests"] = {
+                        "column_tested": target_col,
+                        "tests_performed": tests,
+                        "results": statistical_results
+                    }
+            
             # Generate insights
             insights = self._generate_data_insights(df)
             analysis_results["insights"] = insights
             
             return self._response("success", "analyze", {
                 "message": f"Analysis completed for dataset with {len(df)} rows and {len(df.columns)} columns",
-                "analysis": analysis_results
+                "analysis": analysis_results,
+                "statistical_analysis": analysis_results.get("statistical_tests", {}).get("results", {})
             })
             
         except Exception as e:
@@ -709,6 +734,150 @@ class DataAgent:
             recommendations.append("Consider scaling numeric features for ML")
         
         return recommendations
+    
+    def _perform_statistical_analysis(self, df: pd.DataFrame, column: str, tests: List[str]) -> Dict[str, Any]:
+        """Perform comprehensive statistical analysis on a column"""
+        results = {}
+        
+        try:
+            series = df[column].dropna()
+            if len(series) == 0:
+                return {"error": "No valid data for analysis"}
+            
+            # Basic statistics
+            results['basic_stats'] = {
+                'count': len(series),
+                'mean': float(series.mean()),
+                'std': float(series.std()),
+                'min': float(series.min()),
+                'max': float(series.max()),
+                'skewness': float(series.skew()),
+                'kurtosis': float(series.kurtosis()),
+                'median': float(series.median()),
+                'q25': float(series.quantile(0.25)),
+                'q75': float(series.quantile(0.75))
+            }
+            
+            # Normality tests
+            if 'shapiro_wilk' in tests and len(series) <= 5000:
+                try:
+                    stat, p_value = stats.shapiro(series)
+                    results['shapiro_wilk'] = {
+                        'statistic': float(stat),
+                        'p_value': float(p_value),
+                        'is_normal': p_value > 0.05,
+                        'interpretation': 'Normal' if p_value > 0.05 else 'Not Normal'
+                    }
+                except Exception as e:
+                    results['shapiro_wilk'] = {'error': str(e)}
+            
+            if 'anderson_darling' in tests:
+                try:
+                    result = stats.anderson(series, dist='norm')
+                    results['anderson_darling'] = {
+                        'statistic': float(result.statistic),
+                        'critical_values': result.critical_values.tolist(),
+                        'significance_levels': result.significance_level.tolist(),
+                        'is_normal': result.statistic < result.critical_values[2]  # 5% level
+                    }
+                except Exception as e:
+                    results['anderson_darling'] = {'error': str(e)}
+            
+            if 'jarque_bera' in tests:
+                try:
+                    stat, p_value = stats.jarque_bera(series)
+                    results['jarque_bera'] = {
+                        'statistic': float(stat),
+                        'p_value': float(p_value),
+                        'is_normal': p_value > 0.05
+                    }
+                except Exception as e:
+                    results['jarque_bera'] = {'error': str(e)}
+            
+            # Outlier detection
+            if 'outlier_detection' in tests:
+                try:
+                    Q1 = series.quantile(0.25)
+                    Q3 = series.quantile(0.75)
+                    IQR = Q3 - Q1
+                    lower_bound = Q1 - 1.5 * IQR
+                    upper_bound = Q3 + 1.5 * IQR
+                    
+                    outliers = series[(series < lower_bound) | (series > upper_bound)]
+                    
+                    results['outlier_analysis'] = {
+                        'method': 'IQR',
+                        'outlier_count': len(outliers),
+                        'outlier_percentage': (len(outliers) / len(series)) * 100,
+                        'outlier_indices': outliers.index.tolist(),
+                        'bounds': {
+                            'lower': float(lower_bound),
+                            'upper': float(upper_bound)
+                        },
+                        'outlier_values': outliers.tolist()[:10]  # Limit to first 10
+                    }
+                except Exception as e:
+                    results['outlier_analysis'] = {'error': str(e)}
+            
+            # Distribution tests
+            if 'kolmogorov_smirnov' in tests:
+                try:
+                    # Test against normal distribution
+                    normalized = (series - series.mean()) / series.std()
+                    stat, p_value = stats.kstest(normalized, 'norm')
+                    results['kolmogorov_smirnov'] = {
+                        'statistic': float(stat),
+                        'p_value': float(p_value),
+                        'is_normal': p_value > 0.05
+                    }
+                except Exception as e:
+                    results['kolmogorov_smirnov'] = {'error': str(e)}
+            
+        except Exception as e:
+            results['error'] = f"Statistical analysis failed: {str(e)}"
+        
+        return results
+    
+    def perform_normality_and_outlier_analysis(self, data: Any, column: str = None) -> Dict[str, Any]:
+        """Perform normality and outlier analysis - called by VisualizationAgent"""
+        try:
+            # Prepare data
+            if isinstance(data, str):
+                data = json.loads(data)
+            
+            if isinstance(data, list):
+                if isinstance(data[0], dict):
+                    df = pd.DataFrame(data)
+                else:
+                    df = pd.DataFrame({"values": data})
+            elif isinstance(data, dict):
+                df = pd.DataFrame(data)
+            elif isinstance(data, pd.DataFrame):
+                df = data
+            else:
+                return {"error": "Invalid data format"}
+            
+            # Auto-select column if not provided
+            if column is None:
+                numeric_cols = df.select_dtypes(include=[np.number]).columns
+                if len(numeric_cols) == 0:
+                    return {"error": "No numeric columns found"}
+                column = numeric_cols[0]
+            
+            # Perform comprehensive analysis
+            tests = ['shapiro_wilk', 'anderson_darling', 'outlier_detection', 'kolmogorov_smirnov']
+            results = self._perform_statistical_analysis(df, column, tests)
+            
+            return {
+                "status": "success",
+                "column_analyzed": column,
+                "statistical_analysis": results,
+                "data_shape": df.shape,
+                "message": f"Statistical analysis completed for {column}"
+            }
+            
+        except Exception as e:
+            return {"error": f"Analysis failed: {str(e)}"}
     
     def _response(self, status: str, action: str, data: Optional[Dict] = None, errors: Optional[List] = None) -> Dict[str, Any]:
         """Generate standardized response"""
