@@ -4,9 +4,11 @@ A multi-agent AI system with reinforcement learning capabilities, featuring spec
 
 ## 🏗️ Architecture
 
-![NeuroAct AI Architecture](./docs/Architecture.png)
+![NeuroAct AI Architecture](./docs/NeuroAct.png)
 
-*System architecture showing the multi-agent workflow with Ollama integration*
+*System architecture showing the multi-agent workflow with RLHF integration*
+
+📊 **[Complete System Flowchart](./NeuroAct_Project_Flowchart.md)** - Detailed workflow diagrams and architecture documentation
 
 ### Core Components:
 - **Agents**: Specialized AI agents for different domains
@@ -58,16 +60,23 @@ NeuroAct-AI_Project/
 │   │   ├── CriticAgent.py         # Quality review agent
 │   │   ├── data_agent.py          # Data processing agent
 │   │   ├── Deep_learning_Agent.py # Neural network training
-│   │   ├── eval_agent.py          # Model evaluation
 │   │   ├── ml_agent.py            # Traditional ML
-│   │   ├── OptimizerAgent.py      # Hyperparameter tuning
+│   │   ├── model_evaluation_agent.py # Model evaluation
+│   │   ├── nlp_agent.py           # Natural language processing
 │   │   ├── planner_agent.py       # Workflow orchestration
 │   │   ├── RetrievalAgent.py      # External data fetching
 │   │   └── VisualizationAgent.py  # Data visualization
+│   ├── RLHF_Implementation/       # Reinforcement Learning from Human Feedback
+│   │   ├── __init__.py
+│   │   ├── feedback_collector.py  # User feedback collection
+│   │   ├── feedback_models.py     # Data structures
+│   │   ├── reward_model.py        # Reward model training
+│   │   ├── policy_optimizer.py    # Policy optimization
+│   │   └── integration_manager.py # Agent integration
 │   ├── core/                      # Core logic
 │   │   ├── __init__.py
 │   │   ├── langgraph_flow.py      # LangGraph workflows
-│   │   ├── reward_loop.py         # RL feedback system
+│   │   ├── orchestrator.py        # Main system coordinator
 │   │   └── task_parser.py         # Query parsing
 │   ├── interface/                 # API and UI
 │   │   ├── __init__.py
@@ -105,18 +114,25 @@ NeuroAct-AI_Project/
 └── run.py                         # Main entry point
 ```
 
-## 🤖 Available Agents
+## 🤖 Available Agents (10 Specialized Agents)
 
-- **CodeAgent**: Secure code generation, execution, and review with subprocess isolation, pattern matching, and comprehensive templates for APIs, databases, algorithms, and data processing
-- **MLAgent**: Traditional machine learning with scikit-learn, feature engineering, model selection, hyperparameter tuning, and performance evaluation
-- **DataAgent**: Complete data pipeline with loading (CSV/JSON/Excel), cleaning, statistical analysis, transformation, and quality assessment
-- **DeepLearningAgent**: Neural network training with PyTorch/TensorFlow, custom architectures, transfer learning, and distributed training support
-- **EvalAgent**: Model evaluation and quality assessment with metrics calculation, performance analysis, and validation reporting
-- **PlannerAgent**: Advanced workflow orchestration using NetworkX + LangGraph with DAG validation, parallel execution, and retry strategies
-- **CriticAgent**: Code and model quality review with best practices validation, security analysis, and improvement recommendations
-- **OptimizerAgent**: Hyperparameter optimization using Optuna, Bayesian optimization, and automated model tuning
-- **RetrievalAgent**: External data fetching from APIs, databases, and web sources with caching and rate limiting
-- **VisualizationAgent**: Data visualization and reporting with matplotlib, seaborn, plotly, and interactive dashboards
+- **DataAgent**: Complete data pipeline with loading, cleaning, statistical analysis, EDA, outlier detection, and normality testing
+- **VisualizationAgent**: LLM-powered dynamic plot generation with matplotlib, seaborn, plotly, and intelligent insights
+- **MLAgent**: Traditional machine learning with auto-model selection, feature engineering, and hyperparameter tuning
+- **CodeAgent**: Secure code generation, execution, and review with comprehensive templates and best practices
+- **NLPAgent**: Natural language processing with sentiment analysis, NER, summarization, and text embeddings
+- **DeepLearningAgent**: Neural network training with CNN, RNN, LSTM, image annotation, and optimization features
+- **ModelEvaluationAgent**: Model evaluation, optimization, benchmarking, and performance analysis
+- **CriticAgent**: Smart query routing, multi-agent coordination, and quality review with improvement recommendations
+- **PlannerAgent**: Advanced workflow orchestration with multi-dimensional analysis and intelligent agent selection
+- **RetrievalAgent**: Multi-source search, RAG implementation, and knowledge retrieval with caching
+
+## 🧠 RLHF Learning System
+
+- **FeedbackCollector**: Advanced feedback collection with multi-agent performance tracking and analytics
+- **RewardModel**: Neural reward model training from human preferences and feedback data
+- **PolicyOptimizer**: Continuous system improvement through reinforcement learning from human feedback
+- **IntegrationManager**: Seamless integration with existing agents for non-disruptive learning
 
 ## 🔧 Development
 
