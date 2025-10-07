@@ -175,9 +175,6 @@ We welcome contributions to the public showcase! For core development, please co
 - 🧪 **Testing**: Demo functionality testing
 - 🎯 **Use Cases**: Additional example scenarios
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
