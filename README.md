@@ -1,4 +1,4 @@
-# 🧠 NeuroAct-AI: Multi-Agent Intelligence Platform
+# 🧠 DataSynapse-AI: Multi-Agent Intelligence Platform
 
 > **🌟 Public Showcase Repository**  
 > Full implementation available in [private repository](https://github.com/shubhaml4843/NeuroAct-AI-Core) for authorized users.
